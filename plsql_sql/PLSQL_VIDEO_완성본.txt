@@ -300,3 +300,59 @@ BEGIN
   END;
 END;
 /
+
+
+
+
+
+-- TIME_CHECK 프로시저, 트리거
+CREATE OR REPLACE PROCEDURE time_check 
+IS 
+BEGIN 
+  IF ((TO_CHAR(SYSDATE, 'D') BETWEEN 1 AND 6) 
+    AND (TO_DATE(TO_CHAR(SYSDATE, 'hh24:mi'), 'hh24:mi')
+            NOT BETWEEN 
+            TO_DATE('08:00', 'hh24:mi') AND TO_DATE('22:00', 'hh24:mi')))
+    OR ((TO_CHAR(SYSDATE, 'D') = 7)  
+    AND (TO_DATE(TO_CHAR(SYSDATE, 'hh24:mi'), 'hh24:mi') 
+            NOT BETWEEN
+            TO_DATE('08:00', 'hh24:mi') AND TO_DATE('24:00', 'hh24:mi')))
+  THEN 
+    RAISE_APPLICATION_ERROR
+    (-20998,
+     'Data changes restricted to office hours.'); 
+  END IF; 
+END;
+/
+SHOW ERRORS;
+
+
+-- member 테이블
+CREATE OR REPLACE TRIGGER member_trig
+  BEFORE INSERT OR UPDATE OR DELETE ON member
+CALL time_check
+/
+
+-- rental 테이블
+CREATE OR REPLACE TRIGGER rental_trig
+  BEFORE INSERT OR UPDATE OR DELETE ON rental
+CALL time_check
+/
+
+-- title_copy 테이블
+CREATE OR REPLACE TRIGGER title_copy_trig
+  BEFORE INSERT OR UPDATE OR DELETE ON title_copy
+CALL time_check
+/
+
+-- title 테이블
+CREATE OR REPLACE TRIGGER title_trig
+  BEFORE INSERT OR UPDATE OR DELETE ON title
+CALL time_check
+/
+
+-- reservation 테이블
+CREATE OR REPLACE TRIGGER reservation_trig
+  BEFORE INSERT OR UPDATE OR DELETE ON reservation
+CALL time_check
+/
