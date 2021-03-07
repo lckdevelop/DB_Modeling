@@ -1,0 +1,43 @@
+-- RETURN MOVIE 프로시저
+
+PROCEDURE return_movie
+    (p_titleid    IN rental.title_id%TYPE,
+     p_copyid    IN rental.copy_id%TYPE,
+     p_sts       IN title_copy.status%TYPE)
+IS
+  -- 렌탈 여부 확인 cnt
+  v_cnt NUMBER;
+
+BEGIN
+  BEGIN
+    SELECT COUNT(*) INTO v_cnt
+    FROM title_copy
+    WHERE copy_id = p_copyid
+    AND title_id = p_titleid
+    AND status = 'RENTED';
+
+    -- dbms_output.put_line(v_cnt);
+  END;
+    IF v_cnt = 0 THEN
+       dbms_output.put_line('해당 예약건은 없습니다.');
+    ELSIF v_cnt = 1 THEN
+      IF p_sts != 'RENTED' THEN
+        dbms_output.put_line('해당 예약건은 '||v_cnt||'건 있습니다. 반납이 되었습니다.');
+
+        UPDATE rental
+        SET act_ret_date = SYSDATE
+        WHERE COPY_ID = p_copyid
+        AND TITLE_ID = p_titleid
+        AND ACT_RET_DATE IS NULL;
+
+        UPDATE title_copy
+        SET status = p_sts
+        WHERE COPY_ID = p_copyid
+        AND TITLE_ID = p_titleid;
+
+        COMMIT;
+      ELSE
+         dbms_output.put_line('해당 예약건은 '||v_cnt||'건 있지만. 반납 되지 않았습니다.');
+      END IF;
+    END IF;
+END;

@@ -1,0 +1,275 @@
+-- EXCEPTION HANDLER 프로시저
+
+CREATE OR REPLACE PACKAGE BODY video_pkg 
+IS
+  -- 예외 HANDLER
+  PROCEDURE exception_handler
+ (sqlcode NUMBER, 
+  errName VARCHAR2)
+IS
+BEGIN
+  IF sqlcode = -1 THEN
+    RAISE_APPLICATION_ERROR
+    (-20000,
+     '유일한 값이어야 합니다.');
+  ELSIF sqlcode = -2292 THEN
+    RAISE_APPLICATION_ERROR
+    (-20001,
+     '바라보고 있는 테이블의 데이터가 존재하여 수행될 수 없습니다.');
+  ELSE
+    RAISE_APPLICATION_ERROR
+    (-20999,
+     '예외가 발생하였습니다. '||errName||' : '||SQLERRM);
+  END IF;    
+END;
+
+  -- RENT하고자 하는 영화가 모두 RENTED인 경우
+  procedure reserve_movie
+   (p_memberid IN rental.member_id%TYPE, 
+    p_titleid IN rental.title_id%TYPE)
+  IS
+    CURSOR min_exp_date_cur IS
+      SELECT MIN(EXP_RET_dATE)
+      FROM rental
+      WHERE title_id = p_titleid
+      AND act_ret_date is NULL;
+
+    v_exp_date VARCHAR2(10);     
+  BEGIN
+    INSERT INTO reservation
+    VALUES (SYSDATE, p_memberid, p_titleid);
+    COMMIT;
+
+    OPEN min_exp_date_cur;
+    FETCH min_exp_date_cur INTO v_exp_date;
+    CLOSE min_exp_date_cur;
+
+    dbms_output.put_line('해당 영화가 예약되었습니다. 해당 영화의 예상 반납 일자는'||v_exp_date||'입니다.');
+  
+  EXCEPTION
+    WHEN OTHERS THEN
+      exception_handler(sqlcode, '영화 예약 도중');
+  END;
+
+  -- 새로운 멤버 추가 프로시저
+  PROCEDURE new_member
+    (p_lname    IN member.last_name%TYPE,
+     p_fname    IN member.first_name%TYPE DEFAULT NULL,
+     p_address  IN member.address%TYPE DEFAULT NULL,
+     p_city     IN member.city%TYPE DEFAULT NULL,
+     p_phone    IN member.phone%TYPE DEFAULT NULL)
+  IS
+  BEGIN
+    INSERT INTO member VALUES (member_id_seq.NEXTVAL, p_lname, p_fname, p_address, p_city, p_phone, SYSDATE);
+    COMMIT;
+
+  EXCEPTION
+    WHEN OTHERS THEN
+      exception_handler(sqlcode, '회원 추가 도중');  
+  END;
+
+  -- id로 대여하는 함수
+  FUNCTION new_rental
+   (p_memberid    IN rental.member_id%TYPE,
+    p_titleid     IN rental.title_id%TYPE)
+    RETURN DATE
+  IS
+  TYPE title_copy_record_type IS RECORD
+    (title_id title_copy.title_id%TYPE,
+     copy_id title_copy.copy_id%TYPE,
+     cnt NUMBER);
+
+  r title_copy_record_type;
+
+  v_return_date DATE := SYSDATE;
+  
+  -- r에 대여 가능한 title_id와 copy_id의 첫번째가 들어온다.
+  CURSOR avai_title_copy_cursor IS
+    SELECT title_id, copy_id, count(*) cnt
+    FROM title_copy
+    WHERE title_id = p_titleid
+    AND status = 'AVAILABLE'
+    GROUP BY title_id, copy_id;
+
+  v_title_id title_copy.title_id%TYPE;
+  v_copy_id title_copy.title_id%TYPE;
+    
+BEGIN
+  OPEN avai_title_copy_cursor;
+
+  FETCH avai_title_copy_cursor INTO r;
+  
+  v_title_id := r.title_id;
+  v_copy_id := r.copy_id;
+
+  IF r.cnt IS NULL THEN
+    reserve_movie(p_memberid, p_titleid);
+    v_return_date := NULL;
+  ELSE
+    v_return_date := SYSDATE + 2;
+
+    UPDATE title_copy
+      SET status = 'RENTED'
+      WHERE title_id = v_title_id
+      AND copy_id = v_copy_id;
+  
+    INSERT INTO rental (copy_id, member_id, title_id) VALUES (v_copy_id, p_memberid, v_title_id);
+    COMMIT;  
+  END IF;
+
+  CLOSE avai_title_copy_cursor;
+  return v_return_date;
+
+  EXCEPTION
+    WHEN OTHERS THEN
+      exception_handler(sqlcode, 'id로 렌탈 도중');
+      v_return_date := NULL;
+      return v_return_date;
+  END;
+
+  -- last_name으로 대여하는 함수
+  FUNCTION new_rental
+    (p_membername   IN member.last_name%TYPE,
+     p_titleid      IN rental.title_id%TYPE)
+     RETURN DATE
+  IS
+    -- 동일 성을 가질 경우의 레코드 타입
+    TYPE name_id_type IS RECORD
+    (member_id member.member_id%type,
+     first_name member.first_name%type);
+    
+    -- AVAIABLE찾기 위한 RECORD타입
+    TYPE title_copy_record_type IS RECORD
+    (title_id title_copy.title_id%TYPE,
+     copy_id title_copy.copy_id%TYPE,
+     cnt NUMBER);
+     
+     v_mem_cnt NUMBER;
+     r name_id_type;      
+     r_avai title_copy_record_type;
+     v_title_id title_copy.title_id%TYPE;
+     v_copy_id title_copy.title_id%TYPE;
+     v_get_mem_id NUMBER;
+     r_tmp NUMBER;
+     v_return_date DATE := SYSDATE;
+     
+    CURSOR mem_cnt IS
+      SELECT COUNT(*) 
+      FROM member
+      WHERE last_name =  p_membername;
+
+    CURSOR mem_name_cur IS
+      SELECT member_id, first_name
+      FROM member
+      WHERE last_name =  p_membername;
+
+    -- r에 대여 가능한 title_id와 copy_id의 첫번째가 들어온다.
+    CURSOR avai_title_copy_cursor IS
+      SELECT title_id, copy_id, count(*) cnt
+      FROM title_copy
+      WHERE title_id = p_titleid
+      AND status = 'AVAILABLE'
+      GROUP BY title_id, copy_id;
+  BEGIN
+    OPEN mem_cnt;
+    LOOP
+      FETCH mem_cnt INTO v_mem_cnt;
+      EXIT WHEN mem_cnt%NOTFOUND;
+    END LOOP;
+    CLOSE mem_cnt;
+
+    IF v_mem_cnt = 0 THEN
+      dbms_output.put_line('가입 이력이 없습니다.');
+    ELSIF v_mem_cnt > 1 THEN
+       OPEN mem_name_cur;
+       dbms_output.put_line('동일 성을 가진 회원들이 있습니다.');
+       LOOP
+         FETCH mem_name_cur INTO r;
+         EXIT WHEN mem_name_cur%NOTFOUND;
+           dbms_output.put_line('회원 번호: '||r.member_id||' 이름: '||r.first_name);
+       END LOOP;
+       CLOSE mem_name_cur;
+       v_return_date := NULL;
+    ELSE
+      OPEN avai_title_copy_cursor;
+
+      FETCH avai_title_copy_cursor INTO r_avai;
+  
+      v_title_id := r_avai.title_id;
+      v_copy_id := r_avai.copy_id;
+
+      FOR r_tmp IN (SELECT member_id FROM member where last_name = p_membername) LOOP
+          v_get_mem_id := r_tmp.member_id;
+      END LOOP;
+      IF r_avai.cnt IS NULL THEN
+        reserve_movie(v_get_mem_id, p_titleid);
+        v_return_date := NULL;
+      ELSE
+        UPDATE title_copy
+          SET status = 'RENTED'
+          WHERE title_id = v_title_id
+          AND copy_id = v_copy_id;
+           
+        INSERT INTO rental (copy_id, member_id, title_id) VALUES (v_copy_id, v_get_mem_id, v_title_id);        
+        
+        COMMIT;
+
+        v_return_date := SYSDATE + 2;     
+      END IF;
+      CLOSE avai_title_copy_cursor;
+    END IF;
+    return v_return_date;
+  EXCEPTION
+    WHEN OTHERS THEN
+      exception_handler(sqlcode, 'name으로 렌탈 도중');
+      v_return_date := NULL;
+      return v_return_date;
+  END;
+
+  -- 영화 반납
+  PROCEDURE return_movie
+    (p_titleid    IN rental.title_id%TYPE,
+     p_copyid    IN rental.copy_id%TYPE,
+     p_sts       IN title_copy.status%TYPE)
+  IS
+    -- 렌탈 여부 확인 cnt
+    v_cnt NUMBER;
+
+  BEGIN
+    BEGIN
+      SELECT COUNT(*) INTO v_cnt
+      FROM title_copy
+      WHERE copy_id = p_copyid
+      AND title_id = p_titleid
+      AND status = 'RENTED';
+
+      -- dbms_output.put_line(v_cnt);
+    END;
+      IF v_cnt = 0 THEN
+         dbms_output.put_line('해당 예약건은 없습니다.');
+      ELSIF v_cnt = 1 THEN
+        IF p_sts != 'RENTED' THEN
+          dbms_output.put_line('해당 예약건은 '||v_cnt||'건 있습니다. 반납이 되었습니다.');
+
+          UPDATE rental
+          SET act_ret_date = SYSDATE
+          WHERE COPY_ID = p_copyid
+          AND TITLE_ID = p_titleid
+          AND ACT_RET_DATE IS NULL;
+
+          UPDATE title_copy
+          SET status = p_sts
+          WHERE COPY_ID = p_copyid
+          AND TITLE_ID = p_titleid;
+
+          COMMIT;
+        ELSE
+           dbms_output.put_line('해당 예약건은 '||v_cnt||'건 있지만. 반납 되지 않았습니다.');
+        END IF;
+      END IF;
+  EXCEPTION
+    WHEN OTHERS THEN
+      exception_handler(sqlcode, '영화 반납 도중');
+  END;
+END;
+/
