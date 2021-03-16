@@ -1,0 +1,82 @@
+
+# Table 이해
+
+  select * from title;
+  select * from title_copy order by title_id, copy_id;
+  select * from member;
+  select * from rental order by book_date;
+  select * from reservation;
+
+
+# ERD 이해 : Relationship 읽기
+
+  Each TITLE        may be   available as     one or more       TITLE_COPYs.
+  Each TITLE_COPY   must be  a copy           one and only one  TITLE.
+
+  Each TITLE        may be   the subject of   one or more       RESERVATIONs.
+  Each RESERVATION  must be  for              one and only one  TITLE. 
+    
+  Each MEMBER       may be   responsible for  one or more       RESERVATIONs. 
+  Each RESERVATION  must be  set up           one and only one  MEMBER.
+
+
+# Create Table 문장으로 변경하기
+
+  create table title
+  (id           varchar2(30),
+   title        varchar2(30),
+   description  varchar2(1000),
+   rating       number(5, 2),
+   category     varchar2(30),
+   release_date date,
+     constraint title_id_pk primary key(id),
+     constraint title_title_nn check(title is not null),
+     constraint title_description_nn check(description is not null));
+
+  create table title_copy
+  (id       number(2), 
+   status   varchar2(30),
+   title_id varchar2(30),
+     constraint title_copy_id_title_id_pk primary key(id, title_id),
+     constraint title_copy_title_id 
+       foreign key(title_id) references title(id));  
+
+  create table member
+  (id         varchar2(30),
+   last_name  varchar2(30),
+   first_name varchar2(30),
+   address    varchar2(100),
+   city       varchar2(30), 
+   phone      varchar2(11),
+   join_date  date,
+     constraint member_id_pk primary key(id),
+       constraint member_last_name_nn check(last_name is not null));
+
+  create table rental
+  (book_date           varchar2(16),
+   act_ret_date        varchar2(16),
+   exp_ret_date        varchar2(16),
+   member_id           varchar2(30),
+   title_copy_id       number(2),
+   title_copy_title_id varchar2(30),
+     constraint rental_pk
+       primary key(book_date, title_copy_id, title_copy_title_id),
+     constraint rental_member_id_fk  
+       foreign key(member_id) references member(id),
+     constraint rental_copy_id_copy_title_id_pk
+       foreign key(title_copy_id, title_copy_title_id)
+         references title_copy(id, title_id));
+
+  create table reservation
+  (member_id        varchar2(30),
+   title_id         varchar2(30),
+   reservation_date date,
+     constraint reservation_pk
+       primary key(member_id, title_id, reservation_date),
+     constraint reservation_member_id_fk
+       foreign key(member_id) references member(id),
+     constraint reservation_date_fk
+       foreign key(title_id) references title(id));
+
+
+

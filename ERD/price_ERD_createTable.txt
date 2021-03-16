@@ -1,0 +1,212 @@
+-------------------
+     >첫번째<
+-------------------
+drop table product purge;
+drop table price purge;
+drop table order_header purge;
+drop table order_item purge;
+
+
+<product table>
+
+CREATE TABLE product
+(id NUMBER,
+ name VARCHAR(100));
+
+CREATE INDEX product_id_idx
+ON product(id);
+
+ALTER TABLE product ADD
+CONSTRAINT prt_id_pk PRIMARY KEY(id);
+
+ALTER TABLE product ADD
+CONSTRAINT prt_name_nn CHECK(name IS NOT NULL);
+
+-- <price table>
+CREATE TABLE price
+(product_id NUMBER,
+ price_in_$ NUMBER(10, 2),
+ start_date date,
+ end_date date);
+
+CREATE INDEX prc_prt_id_stt_date_idx
+ON price(product_id, start_date);
+
+CREATE INDEX prc_prt_id_idx
+ON price(product_id);
+
+ALTER TABLE price ADD
+CONSTRAINT prc_prt_id_stt_date_pk PRIMARY KEY(product_id, start_date);
+
+ALTER TABLE price ADD
+CONSTRAINT prc_prt_id_fk FOREIGN KEY(product_id) REFERENCES product(id);
+
+ALTER TABLE price ADD
+CONSTRAINT prc_price_in_$_nn CHECK(price_in_$ IS NOT NULL);
+
+
+<order_header table>
+
+CREATE TABLE order_header
+(id NUMBER,
+ order_date date);
+
+CREATE INDEX order_header_id_idx
+ON order_header(id);
+
+ALTER TABLE order_header ADD
+CONSTRAINT odhr_id_pk PRIMARY KEY(id);
+
+ALTER TABLE order_header ADD
+CONSTRAINT odhr_ord_nn CHECK(order_date IS NOT NULL);
+
+
+<order_item table>
+
+CREATE TABLE order_item
+(order_header_id NUMBER,
+ product_id NUMBER,
+ quantity_ordered NUMBER);
+
+CREATE INDEX odim_odhr_id_prt_id_idx
+ON order_item(order_header_id, product_id);
+
+CREATE INDEX odim_odhr_id_idx
+ON order_item(order_header_id)
+
+CREATE INDEX odim_prt_id_idx
+ON order_item(product_id);
+
+ALTER TABLE order_item ADD
+CONSTRAINT odim_odhr_id_prt_id_pk PRIMARY KEY(order_header_id, product_id);
+
+ALTER TABLE order_item ADD
+CONSTRAINT odim_odhr_id_fk FOREIGN KEY(order_header_id) REFERENCES order_header(id);
+
+ALTER TABLE order_item ADD
+CONSTRAINT odim_prt_id_fk FOREIGN KEY(product_id) REFERENCES product(id);
+
+ALTER TABLE order_item ADD
+CONSTRAINT odim_qod_nn CHECK(quantity_ordered IS NOT NULL);
+
+
+
+-------------------
+     >두번째<
+-------------------
+DROP TABLE price_list PURGE;
+DROP TABLE product PURGE;
+DROP TABLE priced_product PURGE;
+DROP TABLE order_header PURGE;
+DROP TABLE order_item PURGE;
+
+
+
+<price_list table>
+
+CREATE TABLE price_list
+(id NUMBER,
+ start_date DATE,
+ end_date DATE);
+
+CREATE INDEX prlt_id_idx
+ON price_list(id);
+
+ALTER TABLE price_list ADD
+CONSTRAINT prlt_id_pk PRIMARY KEY(id);
+
+ALTER TABLE price_list ADD
+CONSTRAINT prlt_stde_nn CHECK(start_date IS NOT NULL);
+
+
+<product table>
+
+CREATE TABLE product
+(id NUMBER,
+ name VARCHAR(100));
+
+CREATE INDEX product_id_idx
+ON product(id);
+
+ALTER TABLE product ADD
+CONSTRAINT prt_id_pk PRIMARY KEY(id);
+
+ALTER TABLE product ADD
+CONSTRAINT prt_name_nn CHECK(name IS NOT NULL);
+
+
+<priced_product table>
+
+CREATE TABLE priced_product 
+(price_list_id NUMBER,
+ product_id NUMBER,
+ price_in_$ NUMBER(10, 2));
+
+CREATE INDEX prpdt_prlt_id_prt_id_idx
+ON priced_product(price_list_id, product_id);
+
+CREATE INDEX prpdt_prlt_id_idx
+ON priced_product(price_list_id);
+
+CREATE INDEX prpdt_prt_id_idx
+ON priced_product(product_id);
+
+ALTER TABLE priced_product ADD
+CONSTRAINT prpdt_prlt_id_prt_id_pk PRIMARY KEY(price_list_id, product_id);
+
+ALTER TABLE priced_product ADD
+CONSTRAINT prpdt_prlt_id_fk FOREIGN KEY(price_list_id) REFERENCES price_list(id),
+
+ALTER TABLE priced_product ADD
+CONSTRAINT prpdt_prt_id_fk FOREIGN KEY(product_id) REFERENCES product(id),
+
+ALTER TABLE priced_product ADD
+CONSTRAINT prpdt_pr_i_$_nn CHECK(price_in_$ IS NOT NULL);
+
+
+
+<order_header table>
+
+CREATE TABLE order_header
+(id NUMBER,
+ order_date date);
+
+CREATE INDEX order_header_id_idx
+ON order_header(id);
+
+ALTER TABLE order_header ADD
+CONSTRAINT odhr_id_pk PRIMARY KEY(id);
+
+ALTER TABLE order_header ADD
+CONSTRAINT odhr_ord_nn CHECK(order_date IS NOT NULL);
+
+
+<order_item table>
+
+CREATE TABLE order_item
+(order_header_id NUMBER,
+ price_list_id NUMBER,
+ product_id NUMBER,
+ quantity_ordered NUMBER);
+
+CREATE INDEX odim_odhr_id_prpdt_id_prpdt_id_idx
+ON order_item(order_header_id, price_list_id, product_id);
+
+CREATE INDEX odim_odhr_id_idx
+ON order_item(order_header_id);
+
+CREATE INDEX odim_prpdt_id_prpdt_id_idx
+ON order_item(price_list_id, product_id);
+
+
+ALTER TABLE order_item ADD
+CONSTRAINT odim_odhr_id_prpdt_id_prpdt_id_pk PRIMARY KEY(order_header_id, price_list_id, product_id);
+
+ALTER TABLE order_item ADD
+CONSTRAINT odim_odhr_id_fk FOREIGN KEY(order_header_id) REFERENCES order_header(id);
+
+ALTER TABLE order_item ADD
+CONSTRAINT odim_prpdt_id_prpdt_id_pk FOREIGN KEY(price_list_id, product_id) REFERENCES priced_product(price_list_id, product_id);
+
+ALTER TABLE order_item ADD
+CONSTRAINT odim_qod_nn CHECK(quantity_ordered IS NOT NULL);
