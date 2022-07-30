@@ -1,0 +1,16 @@
+  -- 새로운 멤버 추가 프로시저
+  PROCEDURE new_member
+    (p_lname    IN member.last_name%TYPE,
+     p_fname    IN member.first_name%TYPE DEFAULT NULL,
+     p_address  IN member.address%TYPE DEFAULT NULL,
+     p_city     IN member.city%TYPE DEFAULT NULL,
+     p_phone    IN member.phone%TYPE DEFAULT NULL)
+  IS
+  BEGIN
+    INSERT INTO member VALUES (member_id_seq.NEXTVAL, p_lname, p_fname, p_address, p_city, p_phone, SYSDATE);
+    COMMIT;
+
+  EXCEPTION
+    WHEN OTHERS THEN
+      exception_handler(sqlcode, '회원 추가 도중');  
+  END;

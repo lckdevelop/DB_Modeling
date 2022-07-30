@@ -1,0 +1,94 @@
+-- NEW_RENTAL(NAME) 함수
+
+FUNCTION new_rental
+    (p_membername   IN member.last_name%TYPE,
+     p_titleid      IN rental.title_id%TYPE)
+     RETURN DATE
+  IS
+    -- 동일 성을 가질 경우의 레코드 타입
+    TYPE name_id_type IS RECORD
+    (member_id member.member_id%type,
+     first_name member.first_name%type);
+    
+    -- AVAIABLE찾기 위한 RECORD타입
+    TYPE title_copy_record_type IS RECORD
+    (title_id title_copy.title_id%TYPE,
+     copy_id title_copy.copy_id%TYPE,
+     cnt NUMBER);
+     
+     v_mem_cnt NUMBER;
+     r name_id_type;      
+     r_avai title_copy_record_type;
+     v_title_id title_copy.title_id%TYPE;
+     v_copy_id title_copy.title_id%TYPE;
+     v_get_mem_id NUMBER;
+     r_tmp NUMBER;
+     v_return_date DATE := SYSDATE;
+     
+    CURSOR mem_cnt IS
+      SELECT COUNT(*) 
+      FROM member
+      WHERE last_name =  p_membername;
+
+    CURSOR mem_name_cur IS
+      SELECT member_id, first_name
+      FROM member
+      WHERE last_name =  p_membername;
+
+    -- r에 대여 가능한 title_id와 copy_id의 첫번째가 들어온다.
+    CURSOR avai_title_copy_cursor IS
+      SELECT title_id, copy_id, count(*) cnt
+      FROM title_copy
+      WHERE title_id = p_titleid
+      AND status = 'AVAILABLE'
+      GROUP BY title_id, copy_id;
+  BEGIN
+    OPEN mem_cnt;
+    LOOP
+      FETCH mem_cnt INTO v_mem_cnt;
+      EXIT WHEN mem_cnt%NOTFOUND;
+    END LOOP;
+    CLOSE mem_cnt;
+
+    IF v_mem_cnt = 0 THEN
+      dbms_output.put_line('가입 이력이 없습니다.');
+    ELSIF v_mem_cnt > 1 THEN
+       OPEN mem_name_cur;
+       dbms_output.put_line('동일 성을 가진 회원들이 있습니다.');
+       LOOP
+         FETCH mem_name_cur INTO r;
+         EXIT WHEN mem_name_cur%NOTFOUND;
+           dbms_output.put_line('회원 번호: '||r.member_id||' 이름: '||r.first_name);
+       END LOOP;
+       CLOSE mem_name_cur;
+       v_return_date := NULL;
+    ELSE
+      OPEN avai_title_copy_cursor;
+
+      FETCH avai_title_copy_cursor INTO r_avai;
+  
+      v_title_id := r_avai.title_id;
+      v_copy_id := r_avai.copy_id;
+
+      FOR r_tmp IN (SELECT member_id FROM member where last_name = p_membername) LOOP
+          v_get_mem_id := r_tmp.member_id;
+      END LOOP;
+      IF r_avai.cnt IS NULL THEN
+        reserve_movie(v_get_mem_id, p_titleid);
+        v_return_date := NULL;
+      ELSE
+        UPDATE title_copy
+          SET status = 'RENTED'
+          WHERE title_id = v_title_id
+          AND copy_id = v_copy_id;
+           
+        INSERT INTO rental (copy_id, member_id, title_id) VALUES (v_copy_id, v_get_mem_id, v_title_id);        
+        
+        COMMIT;
+
+        v_return_date := SYSDATE + 2;     
+      END IF;
+      CLOSE avai_title_copy_cursor;
+    END IF;
+    return v_return_date;
+END;

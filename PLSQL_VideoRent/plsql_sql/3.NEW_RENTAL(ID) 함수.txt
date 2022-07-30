@@ -1,0 +1,53 @@
+-- NEW_RENTAL(ID) 함수
+
+FUNCTION new_rental
+   (p_memberid    IN rental.member_id%TYPE,
+    p_titleid     IN rental.title_id%TYPE)
+    RETURN DATE
+  IS
+  TYPE title_copy_record_type IS RECORD
+    (title_id title_copy.title_id%TYPE,
+     copy_id title_copy.copy_id%TYPE,
+     cnt NUMBER);
+
+  r title_copy_record_type;
+
+  v_return_date DATE := SYSDATE;
+  
+  -- r에 대여 가능한 title_id와 copy_id의 첫번째가 들어온다.
+  CURSOR avai_title_copy_cursor IS
+    SELECT title_id, copy_id, count(*) cnt
+    FROM title_copy
+    WHERE title_id = p_titleid
+    AND status = 'AVAILABLE'
+    GROUP BY title_id, copy_id;
+
+  v_title_id title_copy.title_id%TYPE;
+  v_copy_id title_copy.title_id%TYPE;
+    
+BEGIN
+  OPEN avai_title_copy_cursor;
+
+  FETCH avai_title_copy_cursor INTO r;
+  
+  v_title_id := r.title_id;
+  v_copy_id := r.copy_id;
+
+  IF r.cnt IS NULL THEN
+    reserve_movie(p_memberid, p_titleid);
+    v_return_date := NULL;
+  ELSE
+    v_return_date := SYSDATE + 2;
+
+    UPDATE title_copy
+      SET status = 'RENTED'
+      WHERE title_id = v_title_id
+      AND copy_id = v_copy_id;
+  
+    INSERT INTO rental (copy_id, member_id, title_id) VALUES (v_copy_id, p_memberid, v_title_id);
+    COMMIT;  
+  END IF;
+
+  CLOSE avai_title_copy_cursor;
+  return v_return_date;
+END;
