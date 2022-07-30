@@ -1,0 +1,68 @@
+------------------
+  >video ERD<
+------------------
+
+<member table>
+  CREATE TABLE member
+  (id            VARCHAR2(30),
+   last_name  VARCHAR2(30),
+   first_name  VARCHAR2(30),
+   address     VARCHAR2(100),
+   city          VARCHAR2(30), 
+   phone       VARCHAR2(11),
+   join_date    DATE,
+                  CONSTRAINT member_id_pk PRIMARY KEY(id),
+                  CONSTRAINT member_last_name_nn CHECK(last_name IS NOT NULL,
+                  CONSTRAINT member_join_date_nn CHECK(join_date IS NOT NULL);
+
+
+<title table>
+  CREATE TABLE title
+  (id               VARCHAR2(30),
+   title            VARCHAR2(30),
+   description   VARCHAR2(1000),
+   rating          NUMBER(5, 2),
+   category      VARCHAR2(30),
+   release_date  DATE,
+                    CONSTRAINT title_id_pk PRIMARY KEY(id),
+                    CONSTRAINT title_title_nn CHECK(title IS NOT NULL);
+                    CONSTRAINT title_description_nn CHECK(description IS NOT NULL);
+
+
+
+<reservation table>
+  CREATE TABLE reservation
+  (member_id        VARCHAR2(30),
+   title_id              VARCHAR2(30),
+   reservation_date  DATE,
+                         CONSTRAINT reservation_pk PRIMARY KEY(member_id, title_id, reservation_date),
+                         CONSTRAINT reservation_member_id_fk FOREIGN KEY(member_id) REFERENCES member(id),
+                         CONSTRAINT reservation_date_fk FOREIGN KEY(title_id) REFERENCES title(id));
+
+
+<title_copy table>
+  CREATE TABLE title_copy
+  (title_id   VARCHAR2(30),
+   id         NUMBER(2), 
+   status    VARCHAR2(30),
+              CONSTRAINT title_copy_id_title_id_pk PRIMARY KEY(id, title_id),
+              CONSTRAINT title_copy_title_id FOREIGN KEY(title_id) REFERENCES title(id));  
+              CONSTRAINT title_copy_sts_nn CHECK(status IS NOT NULL);
+
+
+<rental table>
+  CREATE TABLE rental
+  (book_date           VARCHAR2(16),
+   act_ret_date         VARCHAR2(16),
+   exp_ret_date        VARCHAR2(16),
+   member_id          VARCHAR2(30),
+   title_copy_id         NUMBER(2),
+   title_copy_title_id   VARCHAR2(30),
+     CONSTRAINT rental_pk PRIMARY KEY(book_date, title_copy_id, title_copy_title_id),
+     CONSTRAINT rental_member_id_fk FOREIGN KEY(member_id) REFERENCES member(id),
+     CONSTRAINT rental_copy_id_copy_title_id_pk FOREIGN KEY(title_copy_id, title_copy_title_id) REFERENCES title_copy(id, title_id));
+
+
+
+
+
